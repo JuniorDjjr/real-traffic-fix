@@ -45,6 +45,7 @@ bool cfgOnlyInNormal = false;
 bool cfgFixGroundStuck = true;
 bool cfgUseBikeLogicOnCars = false;
 bool cfgUseBikeLogicOnBicycles = true;
+bool cfgBicyclesDontStopForRed = false;
 bool cfgNoBicycleHorns = true;
 bool cfgCheckObjects = false;
 bool cfgSlowVehiclesSlowLane = true;
@@ -181,7 +182,6 @@ void __fastcall CustomPlayHornIfNecessary(CAutomobile *_this)
 void __fastcall CustomPlayHornIfNecessary(CAutomobile *_this)
 {
 	if (CGeneral::GetRandomNumberInRange(0, cfgHornsThreshold) == 0)
-	if (GetRandomNumberInRange(0, cfgHornsThreshold) == 0)
 	{
 		if (_this->m_autoPilot.m_nCarCtrlFlags & 3)
 		{
@@ -258,14 +258,17 @@ public:
 		lg.open("RealTrafficFix.log", fstream::out | fstream::trunc);
 
 		CIniReader ini("RealTrafficFix.ini");
-		lg << "v2.1 beta" << endl;
+		lg << "v2.2 beta" << endl;
 
 		cfgTestMode					 = ReadIniBool(ini, &lg, "Settings", "TestMode");
 		cfgOnlyInNormal				 = ReadIniBool(ini, &lg, "Settings", "OnlyInNormal");
 		cfgFixGroundStuck			 = ReadIniBool(ini, &lg, "Settings", "FixGroundStuck");
 		cfgUseBikeLogicOnCars		 = ReadIniBool(ini, &lg, "Settings", "UseBikeLogicOnCars");
+	#if defined(GTASA)
 		cfgUseBikeLogicOnBicycles	 = ReadIniBool(ini, &lg, "Settings", "UseBikeLogicOnBicycles");
+		cfgBicyclesDontStopForRed    = ReadIniBool(ini, &lg, "Settings", "BicyclesDontStopForRed");
 		cfgNoBicycleHorns			 = ReadIniBool(ini, &lg, "Settings", "NoBicycleHorns");
+	#endif
 		cfgCheckObjects				 = ReadIniBool(ini, &lg, "Settings", "CheckObjects");
 		cfgSlowVehiclesSlowLane      = ReadIniBool(ini, &lg, "Settings", "SlowVehiclesSlowLane");
 		cfgAvoidVehiclesChangingLane = ReadIniBool(ini, &lg, "Settings", "AvoidVehiclesChangingLane");
@@ -425,8 +428,10 @@ public:
 						#else
 							if (subClass == VEHICLE_AUTOMOBILE || subClass == VEHICLE_BIKE)
 							{
-								vehicle->m_nState |= 3;
-								CCarCtrl::SwitchVehicleToRealPhysics(vehicle);
+								if (!(vehicle->m_nState & 1)) {
+									vehicle->m_nState |= 1;
+									CCarCtrl::SwitchVehicleToRealPhysics(vehicle);
+								}
 								xdata.flags.bPhysics = true;
 							}
 						#endif
@@ -545,7 +550,7 @@ public:
 							(!vehicle->m_nVehicleFlags.bSirenOrAlarm || vehicle->m_nModelIndex == MODEL_MRWHOOP))
 					#else
 						if (vehicle->m_pVehicleToRam == nullptr &&
-							(!vehicle->m_bSirenOrAlarm || vehicle->m_nModelIndex == 153 /*MRWHOOP*/))
+							(!vehicle->m_nSirenOrAlarm || vehicle->m_nModelIndex == 153 /*MRWHOOP*/))
 					#endif
 						{
 						}
@@ -596,6 +601,10 @@ public:
 									if (cfgUseBikeLogicOnBicycles)
 									{
 										vehicle->m_autoPilot.m_nCarDrivingStyle = (eCarDrivingStyle)6;
+									}
+									if (cfgBicyclesDontStopForRed)
+									{
+										vehicle->m_autoPilot.m_nCarDrivingStyle = eCarDrivingStyle::DRIVINGSTYLE_PLOUGH_THROUGH;
 									}
 								}
 							}
@@ -684,11 +693,11 @@ public:
 						//if (steerOffset > 2.0f) steerOffset = 2.0f;
 						//else if (steerOffset < -2.0) steerOffset = -2.0f;
 
-						float frontHeight = (modelMin.z * 0.5f);
+						float frontHeight = (modelMin.z * 0.4f);
 						if (frontHeight > 1.0f) frontHeight = 1.0f;
 						else if (frontHeight < -1.0f) frontHeight = -1.0f;
 
-						float frontHeightBonus = 0.1f;
+						float frontHeightBonus = 0.15f;
 						if (isBike) frontHeightBonus = 0.5f;
 
 						float heightDiffLimit = cfgHeightDiffLimit;
@@ -712,7 +721,7 @@ public:
 							// L
 							steerBackOffset = (modelMax.y * vehicle->m_fSteerAngle);
 							if (steerBackOffset < 0.0f) steerBackOffset = 0.0f;
-							offsetA[1] = { modelMin.x, modelMax.y - steerBackOffset, frontHeight };
+							offsetA[1] = { modelMin.x, modelMax.y - steerBackOffset, frontHeight + frontHeightBonus };
 							coordA[1] = GetWorldCoordWithOffset(vehicle, &offsetA[1]);
 
 							offset = { modelMin.x - (speed / cfgSidesSpeedOffsetDiv) + steerOffset, (modelMax.y + dist), (frontHeight / 1.5f) };
@@ -728,7 +737,7 @@ public:
 							// R
 							steerBackOffset = (modelMax.y * vehicle->m_fSteerAngle);
 							if (steerBackOffset > 0.0f) steerBackOffset = 0.0f;
-							offset = { modelMax.x, modelMax.y + steerBackOffset, frontHeight };
+							offset = { modelMax.x, modelMax.y + steerBackOffset, frontHeight + frontHeightBonus };
 							coordA[2] = GetWorldCoordWithOffset(vehicle, &offset);
 
 							offset = { modelMax.x + (speed / cfgSidesSpeedOffsetDiv) + steerOffset, (modelMax.y + dist), (frontHeight / 1.5f) };

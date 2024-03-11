@@ -71,6 +71,7 @@ int cfgSearchBumpFramesDelay = 30;
 float cfgBumpSearchRadius = 6.0f;
 float cfgBumpSearchDistMult = 0.3f;
 float cfgBumpSpeedDiv = 1.5f;
+bool playerAutoDrive = false;
 ////////////////////////
 const float DEBUG_FONTSIZE = 2.5f;
 const float DEBUG_LINE_HEIGHT = 0.25f;
@@ -258,7 +259,7 @@ public:
 		lg.open("RealTrafficFix.log", fstream::out | fstream::trunc);
 
 		CIniReader ini("RealTrafficFix.ini");
-		lg << "v2.2 beta" << endl;
+		lg << "v2.2.1 beta" << endl;
 
 		cfgTestMode					 = ReadIniBool(ini, &lg, "Settings", "TestMode");
 		cfgOnlyInNormal				 = ReadIniBool(ini, &lg, "Settings", "OnlyInNormal");
@@ -375,7 +376,7 @@ public:
 		{
 			if (vehicle->m_pDriver && vehicle->m_nCreatedBy != eVehicleCreatedBy::MISSION_VEHICLE)
 			{
-				if ((!vehicle->m_pDriver->IsPlayer() && !cfgTestMode) || (cfgTestMode))
+				if ((!vehicle->m_pDriver->IsPlayer() && (!cfgTestMode || !playerAutoDrive)) || (cfgTestMode || playerAutoDrive)) //wtf
 				{
 				#if defined(GTASA)
 					int subClass = vehicle->m_nVehicleSubClass;
@@ -1165,3 +1166,9 @@ public:
 		return false;
 	}
 } realTrafficFix;
+
+extern "C" void __declspec(dllexport) Ext_TogglePlayerAutoDrive(int toggle)
+{
+	playerAutoDrive = (toggle == 1);
+}
+
